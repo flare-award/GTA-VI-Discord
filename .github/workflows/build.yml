@@ -78,6 +78,15 @@ jobs:
           if ($p.ExitCode -ne 0) { throw "--status exited with $($p.ExitCode)" }
           Get-Item $exe | Select-Object Name, Length
 
+      - name: Runtime smoke test (real daemon, process detection, control pipe)
+        shell: pwsh
+        run: |
+          pwsh -File tests/windows-smoke.ps1 -Exe build/Release/GTAVI-Discord.exe *>&1 | Tee-Object -FilePath smoke.log
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content smoke.log | Select-Object -Last 40 | ForEach-Object { Write-Host "::error::$_" }
+            exit $LASTEXITCODE
+          }
+
       - name: Package
         shell: pwsh
         run: |
