@@ -19,7 +19,6 @@
 #include "control.h"
 #include "detect.h"
 #include "ipc.h"
-#include "json.h"
 #include "log.h"
 #include "presence.h"
 #include "wake.h"

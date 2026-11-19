@@ -277,6 +277,36 @@ Discord сам распознаёт `GTA5.exe`. Выключите `Grand Theft 
 
 ---
 
+## Тесты
+
+```bash
+# юнит-тесты: config.ini, сборка активности, протокол Discord (реальные кадры
+# против фальшивого клиента Discord)
+ctest --test-dir build --output-on-failure
+
+# сквозной тест: демон + tools/fake-discord.c
+cc -O2 -o /tmp/fake-discord tools/fake-discord.c
+bash tests/e2e.sh build/GTAVI-Discord /tmp/fake-discord
+```
+
+Все тесты гоняются под ASAN/UBSAN, а CI дополнительно проверяет Windows-сборку
+не только на компиляцию: `tests/windows-smoke.ps1` запускает настоящий демон,
+подсовывает ему процесс-«игру», переключает режим через канал управления и
+корректно его останавливает.
+
+## Релиз
+
+Архивы для Windows и Linux собираются автоматически. Достаточно поставить тег:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+GitHub Actions соберёт обе версии, прогонит тесты и приложит архивы к релизу.
+
+---
+
 ## Структура репозитория
 
 ```
@@ -290,7 +320,7 @@ src/            исходники (C11, без зависимостей)
   wake.c        прерываемое ожидание
   log.c         лог
   main.c        CLI и главный цикл
-tests/          юнит-тесты и сквозной тест с фальшивым Discord
+tests/          юнит-тесты, сквозной тест с фальшивым Discord, smoke-тест Windows
 tools/          fake-discord.c — подставной клиент Discord для тестов
 .github/        CI: сборка Windows/Linux, тесты, релиз
 assets/         сюда можно положить icon.ico для иконки exe
