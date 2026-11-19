@@ -1,0 +1,99 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    name: Linux (сборка + тесты)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build -j"$(nproc)"
+
+      - name: Unit tests (config, presence, IPC)
+        run: ctest --test-dir build --output-on-failure
+
+      - name: End to end test (fake Discord client)
+        run: |
+          cc -O2 -o /tmp/fake-discord tools/fake-discord.c
+          bash tests/e2e.sh build/GTAVI-Discord /tmp/fake-discord
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp build/GTAVI-Discord dist/
+          cp README.md LICENSE dist/
+          cd dist && zip -9 ../GTAVI-Discord-linux-x64.zip *
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GTAVI-Discord-linux-x64
+          path: GTAVI-Discord-linux-x64.zip
+          if-no-files-found: error
+
+  windows:
+    name: Windows x64 (MSVC)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -A x64 -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Smoke test (exe must start and exit cleanly)
+        shell: pwsh
+        run: |
+          $exe = "build/Release/GTAVI-Discord.exe"
+          if (-not (Test-Path $exe)) { throw "exe not built" }
+          $p = Start-Process -FilePath $exe -ArgumentList "--version" -Wait -PassThru -NoNewWindow
+          if ($p.ExitCode -ne 0) { throw "exe exited with $($p.ExitCode)" }
+          $p = Start-Process -FilePath $exe -ArgumentList "--status" -Wait -PassThru -NoNewWindow
+          if ($p.ExitCode -ne 0) { throw "--status exited with $($p.ExitCode)" }
+          Get-Item $exe | Select-Object Name, Length
+
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item "build/Release/GTAVI-Discord.exe" dist/
+          Copy-Item README.md, LICENSE dist/
+          Compress-Archive -Path dist/* -DestinationPath GTAVI-Discord-windows-x64.zip -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GTAVI-Discord-windows-x64
+          path: GTAVI-Discord-windows-x64.zip
+          if-no-files-found: error
+
+  release:
+    name: Релиз
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [linux, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            GTAVI-Discord-windows-x64.zip
+            GTAVI-Discord-linux-x64.zip
+          generate_release_notes: true

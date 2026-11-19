@@ -1,0 +1,91 @@
+/*
+ * test_presence.c - the activity payload must contain exactly the game and the
+ * timer, plus the PlayStation bits in the second mode.
+ */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "config.h"
+#include "json.h"
+#include "log.h"
+#include "presence.h"
+#include "test_util.h"
+
+static void build(const config_t *cfg, sbuf *out)
+{
+    sbuf_init(out);
+    presence_build_activity(cfg, 1700000000, out);
+}
+
+int main(void)
+{
+    config_t cfg;
+    sbuf out;
+
+    log_open(NULL, LOG_LVL_ERROR, false);
+
+    /* --- pc mode: name + timer only ---------------------------------- */
+    config_defaults(&cfg);
+    str_copy(cfg.mode, sizeof(cfg.mode), "pc");
+    build(&cfg, &out);
+    CHECK_CONTAINS(sbuf_cstr(&out), "\"type\":0");
+    CHECK_CONTAINS(sbuf_cstr(&out), "\"start\":1700000000");
+    CHECK_CONTAINS(sbuf_cstr(&out), "\"large_image\":\"gta6\"");
+    CHECK_NOT_CONTAINS(sbuf_cstr(&out), "platform");
+    CHECK_NOT_CONTAINS(sbuf_cstr(&out), "\"state\"");
+    CHECK_NOT_CONTAINS(sbuf_cstr(&out), "\"details\"");
+    CHECK_NOT_CONTAINS(sbuf_cstr(&out), "\"party\"");
+    sbuf_free(&out);
+
+    /* --- playstation mode: platform tag + badge ----------------------- */
+    str_copy(cfg.mode, sizeof(cfg.mode), "playstation");
+    str_copy(cfg.small_image, sizeof(cfg.small_image), "ps5_logo");
+    build(&cfg, &out);
+    CHECK_CONTAINS(sbuf_cstr(&out), "\"platform\":\"ps5\"");
+    CHECK_CONTAINS(sbuf_cstr(&out), "\"small_image\":\"ps5_logo\"");
+    CHECK_CONTAINS(sbuf_cstr(&out), "\"small_text\":\"PlayStation 5\"");
+    sbuf_free(&out);
+
+    /* --- platform = none disables the tag ----------------------------- */
+    str_copy(cfg.platform, sizeof(cfg.platform), "");
+    build(&cfg, &out);
+    CHECK_NOT_CONTAINS(sbuf_cstr(&out), "\"platform\"");
+    sbuf_free(&out);
+
+    /* --- no artwork configured: assets object disappears -------------- */
+    config_defaults(&cfg);
+    cfg.large_image[0] = '\0';
+    cfg.small_image[0] = '\0';
+    str_copy(cfg.mode, sizeof(cfg.mode), "pc");
+    build(&cfg, &out);
+    CHECK_NOT_CONTAINS(sbuf_cstr(&out), "\"assets\"");
+    CHECK_NOT_CONTAINS(sbuf_cstr(&out), "\"large_text\"");
+    sbuf_free(&out);
+
+    /* --- quotes in the config cannot break the JSON -------------------- */
+    config_defaults(&cfg);
+    str_copy(cfg.large_text, sizeof(cfg.large_text), "a \"quoted\" na\\me");
+    build(&cfg, &out);
+    CHECK_CONTAINS(sbuf_cstr(&out), "a \\\"quoted\\\" na\\\\me");
+    sbuf_free(&out);
+
+    /* --- state machine: no send without a live connection -------------- */
+    {
+        presence_t pr;
+        ipc_t ipc;
+
+        presence_init(&pr);
+        ipc_init(&ipc, "123456789012345678");
+        presence_update(&ipc, &cfg, &pr, true);
+        CHECK(!pr.active);
+        CHECK(pr.dirty);
+        presence_invalidate(&pr);
+        CHECK(pr.dirty);
+        presence_clear(&ipc, &pr);
+        CHECK(!pr.active);
+    }
+
+    log_close();
+    TEST_DONE();
+}
