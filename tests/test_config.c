@@ -38,6 +38,7 @@ int main(void)
     config_defaults(&cfg);
     CHECK(strcmp(cfg.mode, "pc") == 0);
     CHECK(strcmp(cfg.large_image, "gta6") == 0);
+    CHECK(strcmp(cfg.large_image_playstation, "gta6ps") == 0);
     CHECK(strcmp(cfg.platform, "ps5") == 0);
     CHECK(cfg.poll_ms == 5000);
     CHECK(cfg.proc_count == 3);
@@ -50,6 +51,8 @@ int main(void)
     CHECK(strcmp(cfg.mode, "pc") == 0);
     CHECK(cfg.proc_count == 3);
     CHECK(strcmp(cfg.procs[1], "GTA5_Enhanced.exe") == 0);
+    CHECK(strcmp(cfg.large_image, "gta6") == 0);
+    CHECK(strcmp(cfg.large_image_playstation, "gta6ps") == 0);
 
     /* --- a real file -------------------------------------------------- */
     write_text(path,
@@ -65,6 +68,7 @@ int main(void)
                "\n"
                "[playstation]\n"
                "platform = PS4\n"
+               "large_image = cover_ps\n"
                "\n"
                "[detection]\n"
                "poll_ms = 1500\n"
@@ -78,6 +82,7 @@ int main(void)
     CHECK(strcmp(cfg.large_image, "cover") == 0);
     CHECK(strcmp(cfg.small_image, "ps") == 0);
     CHECK(strcmp(cfg.platform, "ps4") == 0);
+    CHECK(strcmp(cfg.large_image_playstation, "cover_ps") == 0);
     CHECK(cfg.poll_ms == 1500);
     CHECK(cfg.proc_count == 3);
     CHECK(strcmp(cfg.procs[1], "gta5_enhanced") == 0);

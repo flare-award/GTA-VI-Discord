@@ -33,7 +33,7 @@
     "mode = pc\n"                                                             \
     "\n"                                                                      \
     "[activity]\n"                                                            \
-    "# Ключ большой картинки из Rich Presence -> Art Assets.\n"                \
+    "# Иконка игры для режима pc: ключ ассета из Rich Presence -> Art Assets.\n" \
     "# Пусто = Discord возьмёт иконку самого приложения.\n"                     \
     "large_image = gta6\n"                                                    \
     "large_text = Grand Theft Auto VI\n"                                      \
@@ -46,6 +46,10 @@
     "[playstation]\n"                                                         \
     "# Платформа активности: ps5 | ps4 | xbox | none\n"                       \
     "platform = ps5\n"                                                        \
+    "\n"                                                                      \
+    "# Иконка игры для этого режима (ассет с плашкой PS).\n"                   \
+    "# Пусто = возьмётся large_image из [activity].\n"                         \
+    "large_image = gta6ps\n"                                                  \
     "\n"                                                                      \
     "[detection]\n"                                                           \
     "# Как часто проверять процессы, мс (500-60000).\n"                        \
@@ -67,6 +71,7 @@ void config_defaults(config_t *cfg)
     memset(cfg, 0, sizeof(*cfg));
     str_copy(cfg->mode, sizeof(cfg->mode), "pc");
     str_copy(cfg->large_image, sizeof(cfg->large_image), "gta6");
+    str_copy(cfg->large_image_playstation, sizeof(cfg->large_image_playstation), "gta6ps");
     str_copy(cfg->large_text, sizeof(cfg->large_text), "Grand Theft Auto VI");
     str_copy(cfg->small_text, sizeof(cfg->small_text), "PlayStation 5");
     str_copy(cfg->platform, sizeof(cfg->platform), "ps5");
@@ -163,6 +168,10 @@ static bool set_key(config_t *cfg, const char *section, const char *key, const c
     }
 
     if (str_ieq(section, "playstation")) {
+        if (str_ieq(key, "large_image")) {
+            str_copy(cfg->large_image_playstation, sizeof(cfg->large_image_playstation), value);
+            return true;
+        }
         if (str_ieq(key, "platform")) {
             if (str_ieq(value, "none") || value[0] == '\0') {
                 cfg->platform[0] = '\0';

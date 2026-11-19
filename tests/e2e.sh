@@ -86,6 +86,7 @@ small_text = PlayStation 5
 
 [playstation]
 platform = ps5
+large_image = gta6ps
 
 [detection]
 poll_ms = 200
@@ -128,6 +129,7 @@ esac
 # 5. switch to the playstation mode: the platform field must appear
 "$EXE" --mode playstation >/dev/null || fail "--mode playstation failed"
 wait_for 20 "playstation mode did not send the platform tag" log_contains '"platform":"ps5"'
+log_contains '"large_image":"gta6ps"' || fail "playstation mode did not switch the game artwork"
 grep -q "mode = playstation" "$tmp/config.ini" || fail "mode was not persisted to config.ini"
 
 # 6. stop the game: the activity must be cleared

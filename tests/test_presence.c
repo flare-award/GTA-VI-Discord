@@ -32,6 +32,7 @@ int main(void)
     CHECK_CONTAINS(sbuf_cstr(&out), "\"type\":0");
     CHECK_CONTAINS(sbuf_cstr(&out), "\"start\":1700000000");
     CHECK_CONTAINS(sbuf_cstr(&out), "\"large_image\":\"gta6\"");
+    CHECK_NOT_CONTAINS(sbuf_cstr(&out), "gta6ps");
     CHECK_NOT_CONTAINS(sbuf_cstr(&out), "platform");
     CHECK_NOT_CONTAINS(sbuf_cstr(&out), "\"state\"");
     CHECK_NOT_CONTAINS(sbuf_cstr(&out), "\"details\"");
@@ -43,8 +44,16 @@ int main(void)
     str_copy(cfg.small_image, sizeof(cfg.small_image), "ps5_logo");
     build(&cfg, &out);
     CHECK_CONTAINS(sbuf_cstr(&out), "\"platform\":\"ps5\"");
+    CHECK_CONTAINS(sbuf_cstr(&out), "\"large_image\":\"gta6ps\"");
     CHECK_CONTAINS(sbuf_cstr(&out), "\"small_image\":\"ps5_logo\"");
     CHECK_CONTAINS(sbuf_cstr(&out), "\"small_text\":\"PlayStation 5\"");
+    sbuf_free(&out);
+
+    /* --- an empty console artwork falls back to the plain one ---------- */
+    cfg.large_image_playstation[0] = '\0';
+    build(&cfg, &out);
+    CHECK_CONTAINS(sbuf_cstr(&out), "\"large_image\":\"gta6\"");
+    CHECK_CONTAINS(sbuf_cstr(&out), "\"platform\":\"ps5\"");
     sbuf_free(&out);
 
     /* --- platform = none disables the tag ----------------------------- */
@@ -79,7 +88,7 @@ int main(void)
         sbuf_init(&plain);
         presence_build_activity(&cfg, 1700000000, false, &plain);
         CHECK_NOT_CONTAINS(sbuf_cstr(&plain), "\"platform\"");
-        CHECK_CONTAINS(sbuf_cstr(&plain), "\"large_image\":\"gta6\"");
+        CHECK_CONTAINS(sbuf_cstr(&plain), "\"large_image\":\"gta6ps\"");
         sbuf_free(&plain);
     }
 

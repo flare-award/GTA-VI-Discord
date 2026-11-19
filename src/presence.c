@@ -26,9 +26,17 @@ void presence_build_activity(const config_t *cfg, int64_t started_at, bool allow
                              sbuf *out)
 {
     bool playstation = str_ieq(cfg->mode, "playstation");
-    bool has_large = cfg->large_image[0] != '\0';
+    /* Each mode has its own artwork; the console one falls back to the plain
+     * one so an empty key never hides the game picture. */
+    const char *large_image = cfg->large_image;
     bool has_small = cfg->small_image[0] != '\0';
+    bool has_large;
     bool first_asset = true;
+
+    if (playstation && cfg->large_image_playstation[0] != '\0') {
+        large_image = cfg->large_image_playstation;
+    }
+    has_large = large_image[0] != '\0';
 
     sbuf_add(out, "{\"type\":0,\"timestamps\":{\"start\":");
     sbuf_addf(out, "%lld", (long long)started_at);
@@ -38,7 +46,7 @@ void presence_build_activity(const config_t *cfg, int64_t started_at, bool allow
         sbuf_add(out, ",\"assets\":{");
         if (has_large) {
             sbuf_add(out, "\"large_image\":");
-            sbuf_json_str(out, cfg->large_image);
+            sbuf_json_str(out, large_image);
             if (cfg->large_text[0] != '\0') {
                 sbuf_add(out, ",\"large_text\":");
                 sbuf_json_str(out, cfg->large_text);

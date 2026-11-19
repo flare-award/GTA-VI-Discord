@@ -24,6 +24,7 @@ typedef struct {
 
     /* [playstation] */
     char platform[16];                   /* "ps5" | "ps4" | "xbox" | "" */
+    char large_image_playstation[GTAVI_MAX_PROC];  /* artwork used in this mode */
 
     /* [detection] */
     int poll_ms;
