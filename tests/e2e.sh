@@ -62,8 +62,17 @@ sock="$tmp/discord-ipc-0"
 fake_pid=$!
 wait_for 10 "fake discord did not create its socket" test -S "$sock"
 
-# A stand-in for GTA5.exe: the detector matches on the process image name.
-cp "$(command -v sleep)" "$tmp/GTA5.exe" || fail "cannot copy sleep"
+# A stand-in for the game: a tiny program that just idles. The detector
+# matches on the process image name, so it is compiled as GTA5.exe.
+cat >"$tmp/idle.c" <<'EOF'
+#include <unistd.h>
+int main(void)
+{
+    sleep(120);
+    return 0;
+}
+EOF
+"${CC:-cc}" -O0 -o "$tmp/GTA5.exe" "$tmp/idle.c" || fail "cannot build the fake game process"
 cat >"$tmp/config.ini" <<EOF
 [discord]
 client_id = 123456789012345678
