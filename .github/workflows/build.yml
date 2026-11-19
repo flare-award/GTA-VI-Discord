@@ -28,8 +28,19 @@ jobs:
 
       - name: End to end test (fake Discord client)
         run: |
-          cc -O2 -o /tmp/fake-discord tools/fake-discord.c
-          bash tests/e2e.sh build/GTAVI-Discord /tmp/fake-discord
+          cc -O2 -Wall -o /tmp/fake-discord tools/fake-discord.c
+          set +e
+          bash tests/e2e.sh build/GTAVI-Discord /tmp/fake-discord >/tmp/e2e.log 2>&1
+          status=$?
+          cat /tmp/e2e.log
+          if [ $status -ne 0 ]; then
+            # surface the tail as annotations: the raw log is not downloadable
+            # from restricted environments
+            tail -n 30 /tmp/e2e.log | while IFS= read -r line; do
+              echo "::error::${line}"
+            done
+            exit $status
+          fi
 
       - name: Package
         run: |

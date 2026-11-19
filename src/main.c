@@ -328,6 +328,22 @@ static int clamp_int(int value, int low, int high)
     return value;
 }
 
+/* Reconnect policy: Discord is not running -> quick retries (it may still be
+ * starting), wrong application id -> rare retries, protocol trouble ->
+ * exponential backoff. */
+static int next_retry_delay(ipc_result_t result, int current_ms)
+{
+    switch (result) {
+    case IPC_BAD_CLIENT_ID:
+        return 30000;
+    case IPC_NO_CLIENT:
+        return clamp_int(current_ms * 2, 1000, 5000);
+    case IPC_OK:
+    default:
+        return clamp_int(current_ms * 2, 1000, 30000);
+    }
+}
+
 static void publish_state(bool playing, bool connected)
 {
     control_state_t state;
@@ -385,24 +401,20 @@ static int run_daemon(void)
                 warned_bad_id = false;
                 presence_invalidate(&g_presence);
             } else {
-                if (result == IPC_BAD_CLIENT_ID) {
-                    if (!warned_bad_id) {
-                        LOG_ERROR("Discord отклонил client_id %s - проверьте Application ID в config.ini",
-                                  g_config.client_id);
-                        warned_bad_id = true;
-                    }
-                    retry_ms = 30000;
-                } else if (result == IPC_NO_CLIENT) {
-                    if (!warned_no_discord) {
-                        LOG_INFO("Discord не запущен, ждём");
-                        warned_no_discord = true;
-                    }
-                    retry_ms = 5000;
-                } else {
+                if (result == IPC_BAD_CLIENT_ID && !warned_bad_id) {
+                    LOG_ERROR("Discord отклонил client_id %s - проверьте Application ID в config.ini",
+                              g_config.client_id);
+                    warned_bad_id = true;
+                }
+                if (result == IPC_NO_CLIENT && !warned_no_discord) {
+                    LOG_INFO("Discord не запущен, ждём");
+                    warned_no_discord = true;
+                }
+                if (result != IPC_NO_CLIENT && result != IPC_BAD_CLIENT_ID) {
                     LOG_DEBUG("ошибка подключения: %s", ipc_result_text(result));
-                    retry_ms = clamp_int(retry_ms * 2, 1000, 30000);
                 }
                 retry_at = now_monotonic_ms() + retry_ms;
+                retry_ms = next_retry_delay(result, retry_ms);
             }
             now = now_monotonic_ms();
         } else if (ipc_is_ready(&ipc)) {
