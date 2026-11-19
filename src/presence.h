@@ -19,16 +19,25 @@
 #define PRESENCE_MIN_INTERVAL_MS 2000
 
 typedef struct {
-    bool active;          /* an activity is currently published */
-    bool dirty;           /* desired state differs from the published one */
-    int64_t started_at;   /* unix seconds, 0 when not playing */
+    bool active;            /* an activity is currently published */
+    bool dirty;             /* desired state differs from the published one */
+    int64_t started_at;     /* unix seconds, 0 when not playing */
     int64_t last_send_ms;
+    int degrade;            /* 0 = full payload, 1 = no platform, 2 = no assets */
+    unsigned seen_error_seq;
 } presence_t;
 
 void presence_init(presence_t *p);
 
-/* Builds the activity object (without the SET_ACTIVITY wrapper). */
-void presence_build_activity(const config_t *cfg, int64_t started_at, sbuf *out);
+/* Builds the activity object (without the SET_ACTIVITY wrapper).
+ * `allow_platform == false` drops the console tag, used as a fallback when the
+ * Discord client rejects the richer payload. */
+void presence_build_activity(const config_t *cfg, int64_t started_at, bool allow_platform,
+                             sbuf *out);
+
+/* Reacts to ERROR frames from Discord: an "invalid payload" answer means the
+ * activity is too rich for this client, so it is simplified and re-sent. */
+void presence_handle_discord_error(const ipc_t *ipc, presence_t *p);
 
 /* Reconciles the desired state with what Discord currently shows.
  * Safe to call on every loop iteration. */

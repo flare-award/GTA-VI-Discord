@@ -15,7 +15,7 @@
 static void build(const config_t *cfg, sbuf *out)
 {
     sbuf_init(out);
-    presence_build_activity(cfg, 1700000000, out);
+    presence_build_activity(cfg, 1700000000, true, out);
 }
 
 int main(void)
@@ -69,6 +69,55 @@ int main(void)
     build(&cfg, &out);
     CHECK_CONTAINS(sbuf_cstr(&out), "a \\\"quoted\\\" na\\\\me");
     sbuf_free(&out);
+
+    /* --- the platform field can be dropped as a fallback --------------- */
+    {
+        sbuf plain;
+        config_defaults(&cfg);
+        str_copy(cfg.mode, sizeof(cfg.mode), "playstation");
+        str_copy(cfg.small_image, sizeof(cfg.small_image), "ps5_logo");
+        sbuf_init(&plain);
+        presence_build_activity(&cfg, 1700000000, false, &plain);
+        CHECK_NOT_CONTAINS(sbuf_cstr(&plain), "\"platform\"");
+        CHECK_CONTAINS(sbuf_cstr(&plain), "\"large_image\":\"gta6\"");
+        sbuf_free(&plain);
+    }
+
+    /* --- invalid payload from Discord degrades the activity ------------ */
+    {
+        presence_t pr;
+        ipc_t ipc;
+
+        presence_init(&pr);
+        ipc_init(&ipc, "123456789012345678");
+        pr.active = true;
+        pr.started_at = 1700000000;
+
+        ipc.error_seq = 1;
+        ipc.last_error_code = 4000;
+        presence_handle_discord_error(&ipc, &pr);
+        CHECK(pr.degrade == 1);
+        CHECK(pr.dirty);
+
+        /* an unrelated error must not touch the payload */
+        pr.dirty = false;
+        ipc.error_seq = 2;
+        ipc.last_error_code = 4008;
+        presence_handle_discord_error(&ipc, &pr);
+        CHECK(pr.degrade == 1);
+        CHECK(!pr.dirty);
+
+        /* a second invalid payload drops the artwork too */
+        ipc.error_seq = 3;
+        ipc.last_error_code = 4000;
+        presence_handle_discord_error(&ipc, &pr);
+        CHECK(pr.degrade == 2);
+
+        /* and it never goes further than that */
+        ipc.error_seq = 4;
+        presence_handle_discord_error(&ipc, &pr);
+        CHECK(pr.degrade == 2);
+    }
 
     /* --- state machine: no send without a live connection -------------- */
     {

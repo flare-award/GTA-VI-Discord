@@ -44,6 +44,8 @@ typedef struct {
     ipc_state_t state;
     ipc_result_t last_result;
     int close_code;
+    int last_error_code;   /* last ERROR frame from Discord (0 = none) */
+    unsigned error_seq;    /* bumped for every ERROR frame */
     unsigned nonce;
     char rx[IPC_RX_CAP];
     size_t rx_len;

@@ -22,7 +22,8 @@ void presence_invalidate(presence_t *p)
     }
 }
 
-void presence_build_activity(const config_t *cfg, int64_t started_at, sbuf *out)
+void presence_build_activity(const config_t *cfg, int64_t started_at, bool allow_platform,
+                             sbuf *out)
 {
     bool playstation = str_ieq(cfg->mode, "playstation");
     bool has_large = cfg->large_image[0] != '\0';
@@ -60,7 +61,7 @@ void presence_build_activity(const config_t *cfg, int64_t started_at, sbuf *out)
 
     /* Undocumented for desktop RPC, but it is a genuine field of the activity
      * object and the value Discord itself uses for console sessions. */
-    if (playstation && cfg->platform[0] != '\0') {
+    if (allow_platform && playstation && cfg->platform[0] != '\0') {
         sbuf_add(out, ",\"platform\":");
         sbuf_json_str(out, cfg->platform);
     }
@@ -68,10 +69,29 @@ void presence_build_activity(const config_t *cfg, int64_t started_at, sbuf *out)
     sbuf_add(out, "}");
 }
 
+void presence_handle_discord_error(const ipc_t *ipc, presence_t *p)
+{
+    if (ipc->error_seq == p->seen_error_seq) {
+        return;
+    }
+    p->seen_error_seq = ipc->error_seq;
+
+    /* 4000 = invalid payload: this client does not accept one of our optional
+     * fields. Degrade step by step instead of leaving the profile empty. */
+    if (ipc->last_error_code == 4000 && p->degrade < 2 && p->started_at != 0) {
+        p->degrade++;
+        p->dirty = true;
+        p->last_send_ms = 0;
+        LOG_WARN("Discord отклонил активность: упрощаю её (уровень %d)", p->degrade);
+    }
+}
+
 void presence_update(ipc_t *ipc, const config_t *cfg, presence_t *p, bool game_running)
 {
     int64_t now = now_monotonic_ms();
     sbuf activity;
+
+    presence_handle_discord_error(ipc, p);
 
     if (game_running) {
         if (p->started_at == 0) {
@@ -92,8 +112,8 @@ void presence_update(ipc_t *ipc, const config_t *cfg, presence_t *p, bool game_r
     }
 
     sbuf_init(&activity);
-    if (game_running) {
-        presence_build_activity(cfg, p->started_at, &activity);
+    if (game_running && p->degrade < 2) {
+        presence_build_activity(cfg, p->started_at, p->degrade < 1, &activity);
     }
 
     if (ipc_set_activity(ipc, current_pid(), game_running ? sbuf_cstr(&activity) : NULL)) {

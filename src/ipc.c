@@ -324,7 +324,18 @@ static void handle_frame(ipc_t *ipc, uint32_t opcode, const char *payload, size_
             ipc->state = IPC_STATE_READY;
             LOG_INFO("Discord accepted the connection");
         } else if (strstr(text, "\"evt\":\"ERROR\"") != NULL) {
-            LOG_WARN("Discord reported an error: %s", text);
+            const char *code_pos = strstr(text, "\"code\"");
+            int code = 0;
+
+            if (code_pos != NULL) {
+                const char *colon = strchr(code_pos, ':');
+                if (colon != NULL) {
+                    code = atoi(colon + 1);
+                }
+            }
+            ipc->last_error_code = code;
+            ipc->error_seq++;
+            LOG_WARN("Discord reported an error (code %d): %s", code, text);
         }
         return;
 
@@ -344,6 +355,8 @@ void ipc_init(ipc_t *ipc, const char *client_id)
     ipc->rx_len = 0;
     ipc->nonce = 1;
     ipc->close_code = 0;
+    ipc->last_error_code = 0;
+    ipc->error_seq = 0;
 #ifdef GTAVI_WINDOWS
     ipc->handle = INVALID_HANDLE_VALUE;
 #else
